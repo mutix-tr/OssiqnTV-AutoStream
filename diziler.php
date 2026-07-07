@@ -269,7 +269,7 @@
                         
                         sGrid.innerHTML = '';
                         if(data.Response === "False" || !data.Search) {
-                            sGrid.innerHTML = '<div class="col-12 py-5 text-muted text-center"><i class="fa-solid fa-ghost fa-4x mb-3"></i><br><h3 class="fw-bold">Sonuç bulunamadı.</h3><p>Farklı bir dizi arayın.</p></div>';
+                            sGrid.innerHTML = '<div class="col-12 py-5 text-muted text-center"><i class="fa-solid fa-ghost fa-4x mb-3"></i><br><h3 class="fw-bold">Sonuç bulunamadı.</h3><p>Farklı bir dizi arayin.</p></div>';
                             return;
                         }
 
