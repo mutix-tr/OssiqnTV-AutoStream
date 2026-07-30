@@ -1,11 +1,11 @@
 <?php
-// SQLite tabanlı kurulumsuz veritabanı yapılandırması
-// - Varsayılan olarak proje içi data/ossiqntv.sqlite dosyasını kullanır
+// SQLite tabanlı kurulumsuz veritabanı yapılandırması (proje: mutixtv)
+// - Varsayılan olarak proje içi data/mutixtv.sqlite dosyasını kullanır
 // - Eğer DB yoksa tabloları oluşturur ve örnek admin kullanıcıyı ekler
-// - $db PDO nesnesi global olarak kullanılabilir
+// - Hem eski tablo isimleri (users, promo_codes, pf_*) hem de yeni pf_* isimleri oluşturulur
 
 // Konfig
-$db_path = getenv('DB_PATH') ?: __DIR__ . '/data/ossiqntv.sqlite';
+$db_path = getenv('DB_PATH') ?: __DIR__ . '/data/mutixtv.sqlite';
 
 try {
     // data dizinini oluştur (yoksa)
@@ -33,19 +33,33 @@ try {
 
     // Eğer tablolar yoksa oluştur
     $createQueries = [
+        // admin users
         "CREATE TABLE IF NOT EXISTS admin_users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE,
             password TEXT
         );",
 
+        // settings
         "CREATE TABLE IF NOT EXISTS pf_settings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT DEFAULT 'OSSIQN TV',
+            name TEXT DEFAULT 'mutixtv',
             bio TEXT,
             bg_url TEXT,
             logo_url TEXT,
             avatar_url TEXT
+        );",
+
+        // users (compatibility) and pf_users
+        "CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            username TEXT,
+            email TEXT,
+            password TEXT,
+            balance NUMERIC DEFAULT 0.00,
+            api_key TEXT DEFAULT '',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );",
 
         "CREATE TABLE IF NOT EXISTS pf_users (
@@ -58,6 +72,7 @@ try {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );",
 
+        // licenses
         "CREATE TABLE IF NOT EXISTS pf_licenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -69,10 +84,22 @@ try {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );",
 
+        // promo codes (both names for compatibility)
+        "CREATE TABLE IF NOT EXISTS promo_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT NOT NULL UNIQUE,
+            package_name TEXT NOT NULL,
+            max_uses INTEGER DEFAULT 1,
+            current_uses INTEGER DEFAULT 0
+        );",
+
         "CREATE TABLE IF NOT EXISTS pf_promo_codes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             code TEXT,
-            duration_months INTEGER DEFAULT 1
+            duration_months INTEGER DEFAULT 1,
+            package_name TEXT,
+            max_uses INTEGER DEFAULT 1,
+            current_uses INTEGER DEFAULT 0
         );",
     ];
 
@@ -86,19 +113,30 @@ try {
     $row = $stmt->fetch();
     if (!$row || intval($row['c']) === 0) {
         $ins = $db->prepare('INSERT INTO pf_settings (name) VALUES (:name)');
-        $ins->execute([':name' => 'OSSIQN TV']);
+        $ins->execute([':name' => 'mutixtv']);
     }
 
-    // Örnek promo kodu varsa ekle
-    $stmt = $db->query("SELECT COUNT(*) as c FROM pf_promo_codes WHERE code = 'OSSIQNVIP'");
+    // Örnek promo kodu (compatibility)
+    $stmt = $db->prepare("SELECT COUNT(*) as c FROM promo_codes WHERE code = :code");
+    $stmt->execute([':code' => 'MUTIXVIP']);
     $row = $stmt->fetch();
     if (!$row || intval($row['c']) === 0) {
-        $ins = $db->prepare('INSERT INTO pf_promo_codes (code, duration_months) VALUES (:code, :months)');
-        $ins->execute([':code' => 'OSSIQNVIP', ':months' => 1]);
+        $ins = $db->prepare('INSERT INTO promo_codes (code, package_name, max_uses, current_uses) VALUES (:code, :pkg, :max, 0)');
+        $ins->execute([':code' => 'MUTIXVIP', ':pkg' => 'VIP Promosyon', ':max' => 50]);
     }
 
-    // Admin kullanıcı yoksa ekle (varsayılan şifre: ossiqn3131- -> hash'lenmiş)
-    $stmt = $db->query("SELECT COUNT(*) as c FROM admin_users WHERE username = 'admin'");
+    // Seed pf_promo_codes too
+    $stmt = $db->prepare("SELECT COUNT(*) as c FROM pf_promo_codes WHERE code = :code");
+    $stmt->execute([':code' => 'MUTIXVIP']);
+    $row = $stmt->fetch();
+    if (!$row || intval($row['c']) === 0) {
+        $ins = $db->prepare('INSERT INTO pf_promo_codes (code, duration_months, package_name, max_uses, current_uses) VALUES (:code, :months, :pkg, :max, 0)');
+        $ins->execute([':code' => 'MUTIXVIP', ':months' => 1, ':pkg' => 'VIP Promosyon', ':max' => 50]);
+    }
+
+    // Admin kullanıcı yoksa ekle (varsayılan şifre: ossiqn3131-)
+    $stmt = $db->prepare("SELECT COUNT(*) as c FROM admin_users WHERE username = :u");
+    $stmt->execute([':u' => 'admin']);
     $row = $stmt->fetch();
     if (!$row || intval($row['c']) === 0) {
         $defaultPassword = password_hash('ossiqn3131-', PASSWORD_DEFAULT);
